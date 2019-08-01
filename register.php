@@ -12,7 +12,18 @@ include_once "login_checker.php";
 include_once 'config/database.php';
 include_once 'objects/user.php';
 include_once "libs/php/utils.php";
- 
+
+// Import PHPMailer classes into the global namespace
+// These must be at the top of your script, not inside a function
+use PHPMailer\PHPMailer\PHPMailer;
+use PHPMailer\PHPMailer\Exception;
+
+// Load Composer's autoloader
+require 'vendor/autoload.php';
+
+// Instantiation and passing `true` enables exceptions
+$mail = new PHPMailer(true);
+
 // include page header HTML
 include_once "layout_head.php";
  
@@ -41,8 +52,10 @@ if($_POST){
  
     else{
         // set values to object properties
-        $user->firstname=$_POST['firstname'];
-        $user->lastname=$_POST['lastname'];
+        $firstname = $_POST['firstname'];
+        $user->firstname = $firstname;
+        $lastname = $_POST['lastname'];
+        $user->lastname = $lastname;
         $user->contact_number=$_POST['contact_number'];
         $user->address=$_POST['address'];
         $user->password=$_POST['password'];
@@ -50,28 +63,56 @@ if($_POST){
         $user->status=0;
         // access code for email verification
         $access_code=$utils->getToken();
-        $user->access_code=$access_code;
+        $user->access_code = $access_code;
         
         // create the user
         if($user->create()){
-        
             // send confimation email
             $send_to_email=$_POST['email'];
-            $body="Hi {$send_to_email}.<br /><br />";
-            $body.="Please click the following link to verify your email and login: {$home_url}verify/?access_code={$access_code}";
-            $subject="Verification Email";
-        
-            if($utils->sendEmailViaPhpMail($send_to_email, $subject, $body)){
-                echo "<div class='alert alert-success'>
-                    Verification link was sent to your email. Click that link to login.
-                </div>";
-            }
-        
-            else{
-                echo "<div class='alert alert-danger'>
-                    User was created but unable to send verification email. Please contact admin.
-                </div>";
-            }
+
+            try {
+                //Server settings
+                $mail->SMTPDebug = false;                                       // Enable verbose debug output
+                $mail->isSMTP();                                            // Set mailer to use SMTP
+                $mail->Host       = 'smtp.gmail.com';  // Specify main and backup SMTP servers
+                $mail->SMTPAuth   = true;                                   // Enable SMTP authentication
+                $mail->Username   = 'dnaz09.dn@gmail.com';                     // SMTP username
+                $mail->Password   = 'snnp@2018';                               // SMTP password
+                $mail->SMTPSecure = 'tls';                                  // Enable TLS encryption, `ssl` also accepted
+                $mail->Port       = 587;                                    // TCP port to connect to
+            
+                //Recipients
+                $mail->setFrom('admin@orderingsystem.com', 'Ordering System');
+                $mail->addAddress($send_to_email, $firstname.' '.$lastname);     // Add a recipient
+                // $mail->addAddress('ellen@example.com');               // Name is optional
+                // $mail->addReplyTo('info@example.com', 'Information');
+                // $mail->addCC('cc@example.com');
+                // $mail->addBCC('bcc@example.com');
+            
+                // Attachments
+                // $mail->addAttachment('/var/tmp/file.tar.gz');         // Add attachments
+                // $mail->addAttachment('/tmp/image.jpg', 'new.jpg');    // Optional name
+                
+                // Content
+                $mail->isHTML(true);                                  // Set email format to HTML
+                $mail->Subject = 'Verification Email';
+                $mail->Body    = "Hi {$firstname} {$lastname}.<br /><br />";
+                $mail->Body    .= "Please click the following link to verify your email and login: {$home_url}verify/?access_code={$access_code}";
+                $mail->AltBody = 'This is the body in plain text for non-HTML mail clients';
+                
+
+                $mail->send();
+                    echo "<div class='alert alert-success'>
+                            Verification link was sent to your email. Click that link to login.
+                        </div>";
+                
+                } catch (Exception $e) {
+                    echo "<div class='alert alert-danger'>
+                        User was created but unable to send verification email. Please contact admin.
+                    </div>";
+                }
+            
+            
         
             // empty posted values
             $_POST=array();
